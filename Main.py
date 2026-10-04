@@ -132,9 +132,6 @@ class Canvas:
 
         return round(x_tela), round(y_tela)
 
-    # ==========================================
-    # CONVERTER TELA PARA MUNDO
-    # ==========================================
     def tela_para_mundo(self, x, y):
         centro_x = self.largura_real / 2
         centro_y = self.altura_real / 2
@@ -144,167 +141,8 @@ class Canvas:
 
         return x_mundo, y_mundo
 
-    # ==========================================
-    # CONTROLES DA CAMERA
-    # ==========================================
-    def mover_camera(self, dx, dy):
-        self.camera_x += dx
-        self.camera_y += dy
-
-    def definir_zoom(self, fator):
-        if fator <= 0:
-            raise ValueError("O zoom deve ser maior que zero")
-        self.zoom = fator
-
-    # ==========================================
-    # RECORTE DE LINHAS - COHEN-SUTHERLAND
-    # ==========================================
-    def recortar_linha(self, x1, y1, x2, y2):
-        meia_largura = self.largura_real / (2 * self.zoom)
-        meia_altura = self.altura_real / (2 * self.zoom)
-
-        xmin = self.camera_x - meia_largura
-        xmax = self.camera_x + meia_largura
-        ymin = self.camera_y - meia_altura
-        ymax = self.camera_y + meia_altura
-
-        ESQUERDA = 1
-        DIREITA = 2
-        ABAIXO = 4
-        ACIMA = 8
-
-        def codigo_regiao(x, y):
-            codigo = 0
-            if x < xmin:
-                codigo |= ESQUERDA
-            elif x > xmax:
-                codigo |= DIREITA
-            if y < ymin:
-                codigo |= ABAIXO
-            elif y > ymax:
-                codigo |= ACIMA
-            return codigo
-
-        codigo1 = codigo_regiao(x1, y1)
-        codigo2 = codigo_regiao(x2, y2)
-
-        while True:
-            if codigo1 == 0 and codigo2 == 0:
-                return x1, y1, x2, y2
-            if codigo1 & codigo2:
-                return None
-
-            codigo_fora = codigo1 if codigo1 != 0 else codigo2
-
-            if codigo_fora & ACIMA:
-                if y2 == y1:
-                    return None
-                x = x1 + (x2 - x1) * (ymax - y1) / (y2 - y1)
-                y = ymax
-            elif codigo_fora & ABAIXO:
-                if y2 == y1:
-                    return None
-                x = x1 + (x2 - x1) * (ymin - y1) / (y2 - y1)
-                y = ymin
-            elif codigo_fora & DIREITA:
-                if x2 == x1:
-                    return None
-                y = y1 + (y2 - y1) * (xmax - x1) / (x2 - x1)
-                x = xmax
-            else:
-                if x2 == x1:
-                    return None
-                y = y1 + (y2 - y1) * (xmin - x1) / (x2 - x1)
-                x = xmin
-
-            if codigo_fora == codigo1:
-                x1, y1 = x, y
-                codigo1 = codigo_regiao(x1, y1)
-            else:
-                x2, y2 = x, y
-                codigo2 = codigo_regiao(x2, y2)
-
-    # ==========================================
-    # RECORTE DE POLIGONOS - SUTHERLAND-HODGMAN
-    # ==========================================
-    def recortar_poligono(self, vertices):
-        if len(vertices) < 3:
-            return []
-
-        meia_largura = self.largura_real / (2 * self.zoom)
-        meia_altura = self.altura_real / (2 * self.zoom)
-        xmin = self.camera_x - meia_largura
-        xmax = self.camera_x + meia_largura
-        ymin = self.camera_y - meia_altura
-        ymax = self.camera_y + meia_altura
-
-        def recortar_borda(pontos, dentro, intersecao):
-            if not pontos:
-                return []
-            resultado = []
-            anterior = pontos[-1]
-            anterior_dentro = dentro(anterior)
-
-            for atual in pontos:
-                atual_dentro = dentro(atual)
-                if atual_dentro:
-                    if not anterior_dentro:
-                        resultado.append(intersecao(anterior, atual))
-                    resultado.append(atual)
-                elif anterior_dentro:
-                    resultado.append(intersecao(anterior, atual))
-                anterior = atual
-                anterior_dentro = atual_dentro
-            return resultado
-
-        # Esquerda
-        vertices = recortar_borda(
-            vertices, lambda p: p[0] >= xmin,
-            lambda a, b: (xmin, a[1] + (b[1] - a[1]) *
-                          (xmin - a[0]) / (b[0] - a[0]))
-        )
-        # Direita
-        vertices = recortar_borda(
-            vertices, lambda p: p[0] <= xmax,
-            lambda a, b: (xmax, a[1] + (b[1] - a[1]) *
-                          (xmax - a[0]) / (b[0] - a[0]))
-        )
-        # Inferior
-        vertices = recortar_borda(
-            vertices, lambda p: p[1] >= ymin,
-            lambda a, b: (a[0] + (b[0] - a[0]) *
-                          (ymin - a[1]) / (b[1] - a[1]), ymin)
-        )
-        # Superior
-        vertices = recortar_borda(
-            vertices, lambda p: p[1] <= ymax,
-            lambda a, b: (a[0] + (b[0] - a[0]) *
-                          (ymax - a[1]) / (b[1] - a[1]), ymax)
-        )
-        return vertices
-
-    # ==========================================
-    # LIMPAR A SUPERFICIE
-    # ==========================================
-    def limpar(self, r=0, g=0, b=0):
-        if not all(0 <= c <= 255 for c in (r, g, b)):
-            raise ValueError("RGB deve estar entre 0 e 255")
-        cor = sdl2.SDL_MapRGB(
-            self.surface.contents.format, r, g, b
-        )
-        if sdl2.SDL_FillRect(self.surface, None, cor) != 0:
-            erro = sdl2.SDL_GetError().decode("utf-8")
-            raise RuntimeError(erro)
-
     def linha(self, x1, y1, x2, y2, r, g, b):
         # Converter as coordenadas cartesianas para tela
-        # Recortar a linha antes de converter para pixels
-        resultado = self.recortar_linha(x1, y1, x2, y2)
-        if resultado is None:
-            return
-        x1, y1, x2, y2 = resultado
-
-        # Converter as coordenadas do mundo para a tela
         x1, y1 = self.mundo_para_tela(x1, y1)
         x2, y2 = self.mundo_para_tela(x2, y2)
 
@@ -338,13 +176,6 @@ class Canvas:
 
     def linha_bresenham(self, x1, y1, x2, y2, r, g, b):
         # Converter coordenadas cartesianas para tela
-        # Recortar a linha antes de converter para pixels
-        resultado = self.recortar_linha(x1, y1, x2, y2)
-        if resultado is None:
-            return
-        x1, y1, x2, y2 = resultado
-
-        # Converter as coordenadas do mundo para a tela
         x1, y1 = self.mundo_para_tela(x1, y1)
         x2, y2 = self.mundo_para_tela(x2, y2)
 
@@ -413,10 +244,6 @@ class Canvas:
         if len(vertices) < 3:
             raise ValueError("Um polígono precisa de pelo menos 3 vértices.")
 
-        vertices = self.recortar_poligono(vertices)
-        if len(vertices) < 3:
-            return
-
         # Encontrar os limites verticais
         y_min = min(y for x, y in vertices)
         y_max = max(y for x, y in vertices)
@@ -456,9 +283,6 @@ class Canvas:
             (x, y - altura)
         ]
 
-        vertices = self.recortar_poligono(vertices)
-        if len(vertices) < 3:
-            return
         self.preencher_poligono(vertices, r, g, b)
         self.poligono(vertices, r, g, b)
 
@@ -470,17 +294,11 @@ class Canvas:
             (x3, y3)
         ]
 
-        vertices = self.recortar_poligono(vertices)
-        if len(vertices) < 3:
-            return
         self.preencher_poligono(vertices, r, g, b)
         self.poligono(vertices, r, g, b)
 
 
     def poligono_preenchido(self, vertices, r, g, b):
-        vertices = self.recortar_poligono(vertices)
-        if len(vertices) < 3:
-            return
         self.preencher_poligono(vertices, r, g, b)
         self.poligono(vertices, r, g, b)
     
@@ -632,6 +450,254 @@ class Canvas:
 
         return resultado
     
+
+    # ==========================================
+    # CÂMERA E ZOOM
+    # ==========================================
+    def mover_camera(self, dx, dy):
+        self.camera_x += dx
+        self.camera_y += dy
+
+    def definir_zoom(self, fator):
+        if fator <= 0:
+            raise ValueError("O zoom deve ser maior que zero")
+        self.zoom = fator
+
+    # ==========================================
+    # RECORTE DE LINHAS — COHEN-SUTHERLAND
+    # ==========================================
+    def recortar_linha(self, x1, y1, x2, y2):
+        meia_largura = self.largura_real / (2 * self.zoom)
+        meia_altura = self.altura_real / (2 * self.zoom)
+
+        xmin = self.camera_x - meia_largura
+        xmax = self.camera_x + meia_largura
+        ymin = self.camera_y - meia_altura
+        ymax = self.camera_y + meia_altura
+
+        ESQUERDA, DIREITA, ABAIXO, ACIMA = 1, 2, 4, 8
+
+        def codigo_regiao(x, y):
+            codigo = 0
+            if x < xmin:
+                codigo |= ESQUERDA
+            elif x > xmax:
+                codigo |= DIREITA
+            if y < ymin:
+                codigo |= ABAIXO
+            elif y > ymax:
+                codigo |= ACIMA
+            return codigo
+
+        codigo1 = codigo_regiao(x1, y1)
+        codigo2 = codigo_regiao(x2, y2)
+
+        while True:
+            if codigo1 == 0 and codigo2 == 0:
+                return x1, y1, x2, y2
+            if codigo1 & codigo2:
+                return None
+
+            codigo_fora = codigo1 if codigo1 != 0 else codigo2
+
+            if codigo_fora & ACIMA:
+                if y2 == y1:
+                    return None
+                x = x1 + (x2 - x1) * (ymax - y1) / (y2 - y1)
+                y = ymax
+            elif codigo_fora & ABAIXO:
+                if y2 == y1:
+                    return None
+                x = x1 + (x2 - x1) * (ymin - y1) / (y2 - y1)
+                y = ymin
+            elif codigo_fora & DIREITA:
+                if x2 == x1:
+                    return None
+                y = y1 + (y2 - y1) * (xmax - x1) / (x2 - x1)
+                x = xmax
+            else:
+                if x2 == x1:
+                    return None
+                y = y1 + (y2 - y1) * (xmin - x1) / (x2 - x1)
+                x = xmin
+
+            if codigo_fora == codigo1:
+                x1, y1 = x, y
+                codigo1 = codigo_regiao(x1, y1)
+            else:
+                x2, y2 = x, y
+                codigo2 = codigo_regiao(x2, y2)
+
+    # ==========================================
+    # RECORTE DE POLÍGONOS — SUTHERLAND-HODGMAN
+    # ==========================================
+    def recortar_poligono(self, vertices):
+        if len(vertices) < 3:
+            return []
+
+        meia_largura = self.largura_real / (2 * self.zoom)
+        meia_altura = self.altura_real / (2 * self.zoom)
+        xmin = self.camera_x - meia_largura
+        xmax = self.camera_x + meia_largura
+        ymin = self.camera_y - meia_altura
+        ymax = self.camera_y + meia_altura
+
+        def recortar_borda(pontos, dentro, intersecao):
+            if not pontos:
+                return []
+            resultado = []
+            anterior = pontos[-1]
+            anterior_dentro = dentro(anterior)
+
+            for atual in pontos:
+                atual_dentro = dentro(atual)
+                if atual_dentro:
+                    if not anterior_dentro:
+                        resultado.append(intersecao(anterior, atual))
+                    resultado.append(atual)
+                elif anterior_dentro:
+                    resultado.append(intersecao(anterior, atual))
+                anterior = atual
+                anterior_dentro = atual_dentro
+            return resultado
+
+        # Interseções calculadas com interpolação; evita divisão por zero
+        # nos casos degenerados em que uma aresta paralela seria chamada.
+        def cruzar_x(a, b, x):
+            t = (x - a[0]) / (b[0] - a[0])
+            return x, a[1] + t * (b[1] - a[1])
+
+        def cruzar_y(a, b, y):
+            t = (y - a[1]) / (b[1] - a[1])
+            return a[0] + t * (b[0] - a[0]), y
+
+        vertices = recortar_borda(
+            vertices, lambda p: p[0] >= xmin,
+            lambda a, b: cruzar_x(a, b, xmin))
+        vertices = recortar_borda(
+            vertices, lambda p: p[0] <= xmax,
+            lambda a, b: cruzar_x(a, b, xmax))
+        vertices = recortar_borda(
+            vertices, lambda p: p[1] >= ymin,
+            lambda a, b: cruzar_y(a, b, ymin))
+        vertices = recortar_borda(
+            vertices, lambda p: p[1] <= ymax,
+            lambda a, b: cruzar_y(a, b, ymax))
+        return vertices
+
+    # ==========================================
+    # PIXEL COM MISTURA DE CORES
+    # ==========================================
+    def pixel_suave(self, x, y, cor_linha, cobertura,
+                    cor_fundo=(0, 0, 0)):
+        cobertura = max(0.0, min(1.0, cobertura))
+        r, g, b = cor_linha
+        rf, gf, bf = cor_fundo
+        r_final = round(r * cobertura + rf * (1 - cobertura))
+        g_final = round(g * cobertura + gf * (1 - cobertura))
+        b_final = round(b * cobertura + bf * (1 - cobertura))
+        self.pixel(x, y, r_final, g_final, b_final)
+
+    # ==========================================
+    # LINHA SUAVIZADA — XIAOLIN WU
+    # ==========================================
+    def linha_antialias(self, x1, y1, x2, y2, r, g, b,
+                        cor_fundo=(0, 0, 0)):
+        recorte = self.recortar_linha(x1, y1, x2, y2)
+        if recorte is None:
+            return
+        x1, y1, x2, y2 = recorte
+
+        # Converter para tela mantendo casas decimais
+        cx = self.largura_real / 2
+        cy = self.altura_real / 2
+        x1 = cx + (x1 - self.camera_x) * self.zoom
+        y1 = cy - (y1 - self.camera_y) * self.zoom
+        x2 = cx + (x2 - self.camera_x) * self.zoom
+        y2 = cy - (y2 - self.camera_y) * self.zoom
+
+        cor = (r, g, b)
+
+        def plot(x, y, cobertura):
+            if cobertura > 0:
+                self.pixel_suave(x, y, cor, cobertura, cor_fundo)
+
+        def fpart(valor):
+            return valor - floor(valor)
+
+        def rfpart(valor):
+            return 1 - fpart(valor)
+
+        steep = abs(y2 - y1) > abs(x2 - x1)
+        if steep:
+            x1, y1 = y1, x1
+            x2, y2 = y2, x2
+        if x1 > x2:
+            x1, x2 = x2, x1
+            y1, y2 = y2, y1
+
+        dx = x2 - x1
+        dy = y2 - y1
+        if dx == 0:
+            if steep:
+                plot(round(y1), round(x1), 1)
+            else:
+                plot(round(x1), round(y1), 1)
+            return
+
+        gradiente = dy / dx
+
+        x_inicio = round(x1)
+        y_inicio = y1 + gradiente * (x_inicio - x1)
+        gap_inicio = rfpart(x1 + 0.5)
+        px_inicio = x_inicio
+        py_inicio = floor(y_inicio)
+
+        if steep:
+            plot(py_inicio, px_inicio, rfpart(y_inicio) * gap_inicio)
+            plot(py_inicio + 1, px_inicio, fpart(y_inicio) * gap_inicio)
+        else:
+            plot(px_inicio, py_inicio, rfpart(y_inicio) * gap_inicio)
+            plot(px_inicio, py_inicio + 1, fpart(y_inicio) * gap_inicio)
+
+        inter_y = y_inicio + gradiente
+        x_fim = round(x2)
+        y_fim = y2 + gradiente * (x_fim - x2)
+        gap_fim = fpart(x2 + 0.5)
+        px_fim = x_fim
+        py_fim = floor(y_fim)
+
+        for x in range(px_inicio + 1, px_fim):
+            y = floor(inter_y)
+            if steep:
+                plot(y, x, rfpart(inter_y))
+                plot(y + 1, x, fpart(inter_y))
+            else:
+                plot(x, y, rfpart(inter_y))
+                plot(x, y + 1, fpart(inter_y))
+            inter_y += gradiente
+
+        if steep:
+            plot(py_fim, px_fim, rfpart(y_fim) * gap_fim)
+            plot(py_fim + 1, px_fim, fpart(y_fim) * gap_fim)
+        else:
+            plot(px_fim, py_fim, rfpart(y_fim) * gap_fim)
+            plot(px_fim, py_fim + 1, fpart(y_fim) * gap_fim)
+
+    def poligono_antialias(self, vertices, r, g, b,
+                           cor_fundo=(0, 0, 0)):
+        if len(vertices) < 3:
+            raise ValueError("Um polígono precisa de pelo menos 3 vértices.")
+        vertices = self.recortar_poligono(vertices)
+        if len(vertices) < 3:
+            return
+        for i in range(len(vertices)):
+            x1, y1 = vertices[i]
+            x2, y2 = vertices[(i + 1) % len(vertices)]
+            self.linha_antialias(
+                x1, y1, x2, y2, r, g, b, cor_fundo
+            )
+
     # ==========================================
     # ATUALIZAR JANELA
     # ==========================================
@@ -666,26 +732,39 @@ class Canvas:
 # PROGRAMA PRINCIPAL
 # ==========================================
 
+
 if __name__ == "__main__":
+
     canvas = Canvas(800, 600)
 
-    # Poligono parcialmente fora da janela
+  # Linha tradicional com Bresenham
+    canvas.linha_bresenham(
+        -250, 100, 250, 180,
+        255, 255, 255
+    )
+
+    # Linha suavizada
+    canvas.linha_antialias(
+        -250, 0, 250, 80,
+        255, 255, 255,
+        cor_fundo=(0, 0, 0)
+    )
+
+    # Polígono com contorno suavizado
     vertices = [
-        (-500, -200),
-        (100, -200),
-        (500, 100),
-        (100, 400),
-        (-500, 300)
+        (-100, -100),
+        (100, -100),
+        (150, 50),
+        (0, 150),
+        (-150, 50)
     ]
 
-    # Obter e exibir os vertices resultantes do recorte
-    vertices_recortados = canvas.recortar_poligono(vertices)
-    print("Vertices originais:", vertices)
-    print("Vertices recortados:", vertices_recortados)
+    canvas.poligono_antialias(
+        vertices,
+        255, 0, 0,
+        cor_fundo=(0, 0, 0)
+    )
 
-    # Desenhar o poligono recortado e preenchido
-    canvas.limpar(20, 20, 30)
-    canvas.poligono_preenchido(vertices, 100, 180, 255)
 
     # ------------------------------------------
     # ATUALIZAR E EXIBIR
