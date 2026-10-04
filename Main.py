@@ -138,13 +138,13 @@ if __name__ == "__main__":
     canvas = Canvas(800, 600)
 
     # Pixel vermelho no centro
-    canvas.pixel(400, 300, 255, 0, 0)
+    canvas.pixel(300, 300, 255, 0, 0)
 
     # Pixel verde no canto superior esquerdo
-    canvas.pixel(0, 0, 0, 255, 0)
+    canvas.pixel(300, 200, 0, 255, 0)
 
     # Pixel azul no canto inferior direito
-    canvas.pixel(799, 599, 0, 0, 255)
+    canvas.pixel(300, 400, 0, 0, 255)
 
     # Apresentar os pixels na janela
     canvas.atualizar()
