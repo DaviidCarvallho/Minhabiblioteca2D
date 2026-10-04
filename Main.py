@@ -3,6 +3,7 @@ import ctypes
 import sys
 import sdl2
 from math import ceil, floor
+from math import ceil, floor, sin, cos, radians
 
 class Canvas:
     def __init__(self, largura, altura, titulo="Minha Biblioteca 2D"):
@@ -331,6 +332,36 @@ class Canvas:
             novos_vertices.append((novo_x, novo_y))
 
         return novos_vertices
+    
+
+    def rotacionar_ponto(self, x, y, angulo):
+        # Converter graus para radianos
+        theta = radians(angulo)
+
+        # Calcular seno e cosseno
+        cos_theta = cos(theta)
+        sin_theta = sin(theta)
+
+        # Aplicar as fórmulas da rotação
+        novo_x = x * cos_theta - y * sin_theta
+        novo_y = x * sin_theta + y * cos_theta
+
+        return novo_x, novo_y
+
+
+    def rotacionar_poligono(self, vertices, angulo):
+        novos_vertices = []
+
+        for x, y in vertices:
+            novo_x, novo_y = self.rotacionar_ponto(
+                x, y, angulo
+            )
+
+            novos_vertices.append((novo_x, novo_y))
+
+        return novos_vertices
+
+    
     # ==========================================
     # ATUALIZAR JANELA
     # ==========================================
@@ -370,23 +401,23 @@ if __name__ == "__main__":
 
     canvas = Canvas(800, 600)
 
-  # Vértices do triângulo original
+   # Definir os vértices do triângulo
     vertices = [
-        (-100, 0),
-        (0, 150),
-        (100, 0)
+        (100, 0),
+        (200, 0),
+        (150, 100)
     ]
 
-    # Desenhar o triângulo original
+    # Desenhar o triângulo original em vermelho
     canvas.poligono(vertices, 255, 0, 0)
 
-    # Aplicar escala uniforme de 1.5
-    vertices_escalados = canvas.escalar_poligono(
-        vertices, 1.5, 1.5
+    # Rotacionar o triângulo em 45 graus
+    vertices_rotacionados = canvas.rotacionar_poligono(
+        vertices, 45
     )
 
-    # Desenhar o triângulo ampliado
-    canvas.poligono(vertices_escalados, 0, 255, 0)
+    # Desenhar o triângulo rotacionado em azul
+    canvas.poligono(vertices_rotacionados, 0, 0, 255)
 
     # ------------------------------------------
     # ATUALIZAR E EXIBIR
