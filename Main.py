@@ -2,14 +2,16 @@
 import ctypes
 import sys
 import sdl2
-from math import ceil, floor
 from math import ceil, floor, sin, cos, radians
 
 class Canvas:
     def __init__(self, largura, altura, titulo="Minha Biblioteca 2D"):
         self.largura = largura
         self.altura = altura
-
+        self.camera_x = 0
+        self.camera_y = 0
+        self.zoom = 1.0
+        
         # Inicializar SDL2
         if sdl2.SDL_Init(sdl2.SDL_INIT_VIDEO) != 0:
             raise RuntimeError(
@@ -121,26 +123,49 @@ class Canvas:
     # ==========================================
     # CONVERTER MUNDO PARA TELA
     # ==========================================
+    # ALTERAÇÃO: agora considera posição da câmera e zoom.
     def mundo_para_tela(self, x, y):
         centro_x = self.largura_real / 2
         centro_y = self.altura_real / 2
 
-        x_tela = round(centro_x + x)
-        y_tela = round(centro_y - y)
+        x_tela = centro_x + (x - self.camera_x) * self.zoom
+        y_tela = centro_y - (y - self.camera_y) * self.zoom
 
-        return x_tela, y_tela
+        return round(x_tela), round(y_tela)
 
     # ==========================================
     # CONVERTER TELA PARA MUNDO
     # ==========================================
+    # ALTERAÇÃO: conversão inversa considerando câmera e zoom.
     def tela_para_mundo(self, x, y):
         centro_x = self.largura_real / 2
         centro_y = self.altura_real / 2
 
-        x_mundo = x - centro_x
-        y_mundo = centro_y - y
+        x_mundo = (x - centro_x) / self.zoom + self.camera_x
+        y_mundo = (centro_y - y) / self.zoom + self.camera_y
 
         return x_mundo, y_mundo
+
+    # NOVO: deslocar o ponto do mundo que fica no centro da tela.
+    def mover_camera(self, dx, dy):
+        self.camera_x += dx
+        self.camera_y += dy
+
+    # NOVO: definir a escala de visualização.
+    def definir_zoom(self, fator):
+        if fator <= 0:
+            raise ValueError("O zoom deve ser maior que zero")
+        self.zoom = fator
+
+    # NOVO: limpar a superfície com uma cor de fundo (preto por padrão).
+    def limpar(self, r=0, g=0, b=0):
+        if not all(0 <= c <= 255 for c in (r, g, b)):
+            raise ValueError("RGB deve estar entre 0 e 255")
+        formato = self.surface.contents.format
+        cor = sdl2.SDL_MapRGB(formato, r, g, b)
+        if sdl2.SDL_FillRect(self.surface, None, cor) != 0:
+            erro = sdl2.SDL_GetError().decode("utf-8")
+            raise RuntimeError(erro)
 
     def linha(self, x1, y1, x2, y2, r, g, b):
         # Converter as coordenadas cartesianas para tela
@@ -241,41 +266,33 @@ class Canvas:
 
             self.linha_bresenham(x1, y1, x2, y2, r, g, b)
     
+    # ALTERAÇÃO: rasteriza o preenchimento em coordenadas de tela.
+    # Isso mantém o interior contínuo também quando o zoom é diferente de 1.
     def preencher_poligono(self, vertices, r, g, b):
         if len(vertices) < 3:
             raise ValueError("Um polígono precisa de pelo menos 3 vértices.")
 
-        # Encontrar os limites verticais
-        y_min = min(y for x, y in vertices)
-        y_max = max(y for x, y in vertices)
+        vertices_tela = [self.mundo_para_tela(x, y) for x, y in vertices]
+        y_min = min(y for x, y in vertices_tela)
+        y_max = max(y for x, y in vertices_tela)
 
-        # Percorrer cada linha horizontal do polígono
-        for y in range(ceil(y_min), floor(y_max) + 1):
+        for y in range(max(0, y_min), min(self.altura_real - 1, y_max) + 1):
             intersecoes = []
+            for i in range(len(vertices_tela)):
+                x1, y1 = vertices_tela[i]
+                x2, y2 = vertices_tela[(i + 1) % len(vertices_tela)]
 
-            # Verificar a interseção da linha com cada aresta
-            for i in range(len(vertices)):
-                x1, y1 = vertices[i]
-                x2, y2 = vertices[(i + 1) % len(vertices)]
-
-                # Ignorar arestas horizontais e evitar
-                # contar duas vezes os vértices compartilhados
                 if min(y1, y2) <= y < max(y1, y2):
                     x_intersecao = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
                     intersecoes.append(x_intersecao)
 
-            # Ordenar as interseções da esquerda para a direita
             intersecoes.sort()
-
-            # Preencher entre cada par de interseções
             for i in range(0, len(intersecoes) - 1, 2):
-                x_inicio = ceil(intersecoes[i])
-                x_fim = floor(intersecoes[i + 1])
-
+                x_inicio = max(0, ceil(intersecoes[i]))
+                x_fim = min(self.largura_real - 1, floor(intersecoes[i + 1]))
                 for x in range(x_inicio, x_fim + 1):
-                    tela_x, tela_y = self.mundo_para_tela(x, y)
-                    self.pixel(tela_x, tela_y, r, g, b)
-        
+                    self.pixel(x, y, r, g, b)
+
     def retangulo_preenchido(self, x, y, largura, altura, r, g, b):
         vertices = [
             (x, y),
@@ -361,6 +378,95 @@ class Canvas:
 
         return novos_vertices
 
+
+    
+    def matriz_translacao(self, tx, ty):
+        return [
+            [1, 0, tx],
+            [0, 1, ty],
+            [0, 0, 1]
+        ]
+
+    def matriz_escala(self, sx, sy):
+        return [
+            [sx, 0, 0],
+            [0, sy, 0],
+            [0, 0, 1]
+        ]
+
+    def matriz_rotacao(self, angulo):
+        theta = radians(angulo)
+
+        c = cos(theta)
+        s = sin(theta)
+
+        return [
+            [c, -s, 0],
+            [s,  c, 0],
+            [0,  0, 1]
+        ]
+
+
+    
+    def multiplicar_matrizes(self, A, B):
+        linhas_A = len(A)
+        colunas_A = len(A[0])
+        colunas_B = len(B[0])
+
+        resultado = [
+            [0 for _ in range(colunas_B)]
+            for _ in range(linhas_A)
+        ]
+
+        for i in range(linhas_A):
+            for j in range(colunas_B):
+                for k in range(colunas_A):
+                    resultado[i][j] += A[i][k] * B[k][j]
+
+        return resultado
+
+    
+    def aplicar_matriz(self, matriz, x, y):
+        ponto = [x, y, 1]
+
+        resultado = [0, 0, 0]
+
+        for i in range(3):
+            for j in range(3):
+                resultado[i] += matriz[i][j] * ponto[j]
+
+        return resultado[0], resultado[1]
+
+    
+    def transformar_poligono_matriz(self, vertices, matriz):
+        novos_vertices = []
+
+        for x, y in vertices:
+            novo_x, novo_y = self.aplicar_matriz(
+                matriz, x, y
+            )
+
+            novos_vertices.append((novo_x, novo_y))
+
+        return novos_vertices
+
+    
+    def compor_transformacoes(self, *matrizes):
+        if not matrizes:
+            return [
+                [1, 0, 0],
+                [0, 1, 0],
+                [0, 0, 1]
+            ]
+
+        resultado = matrizes[0]
+
+        for matriz in matrizes[1:]:
+            resultado = self.multiplicar_matrizes(
+                resultado, matriz
+            )
+
+        return resultado
     
     # ==========================================
     # ATUALIZAR JANELA
@@ -393,32 +499,51 @@ class Canvas:
 
 
 # ==========================================
-# PROGRAMA PRINCIPAL
+# PROGRAMA PRINCIPAL — TESTE DE CÂMERA E ZOOM
 # ==========================================
 
-
 if __name__ == "__main__":
-
     canvas = Canvas(800, 600)
 
-   # Definir os vértices do triângulo
+    # Triângulo original, definido em coordenadas do mundo.
     vertices = [
-        (100, 0),
-        (200, 0),
-        (150, 100)
+        (-50, 0),
+        (50, 0),
+        (0, 100)
     ]
 
-    # Desenhar o triângulo original em vermelho
-    canvas.poligono(vertices, 255, 0, 0)
+    # Transformações geométricas por matrizes (mantidas da etapa anterior).
+    escala = canvas.matriz_escala(1.5, 1.5)
+    rotacao = canvas.matriz_rotacao(45)
+    translacao = canvas.matriz_translacao(150, 50)
 
-    # Rotacionar o triângulo em 45 graus
-    vertices_rotacionados = canvas.rotacionar_poligono(
-        vertices, 45
+    # Com vetores-coluna, a ordem de aplicação é da direita para a esquerda:
+    # escala, depois rotação e, por fim, translação.
+    matriz_final = canvas.compor_transformacoes(
+        translacao,
+        rotacao,
+        escala
     )
+    novos_vertices = canvas.transformar_poligono_matriz(vertices, matriz_final)
 
-    # Desenhar o triângulo rotacionado em azul
-    canvas.poligono(vertices_rotacionados, 0, 0, 255)
+    # Estado 1: triângulo original em vermelho.
+    canvas.limpar(0, 0, 0)
+    canvas.poligono(vertices, 255, 0, 0)
+    canvas.atualizar()
+    sdl2.SDL_Delay(1200)
 
+    # Estado 2: polígono transformado em verde e visualização ampliada.
+    canvas.limpar(0, 0, 0)
+    canvas.definir_zoom(2.0)
+    canvas.poligono(novos_vertices, 0, 255, 0)
+    canvas.atualizar()
+    sdl2.SDL_Delay(1200)
+
+    # Estado 3: câmera deslocada no eixo X; o polígono aparece azul.
+    canvas.limpar(0, 0, 0)
+    canvas.mover_camera(50, 0)
+    canvas.poligono(novos_vertices, 0, 0, 255)
+    
     # ------------------------------------------
     # ATUALIZAR E EXIBIR
     # ------------------------------------------
