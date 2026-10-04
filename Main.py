@@ -172,6 +172,8 @@ class Canvas:
 
             x += x_incremento
             y += y_incremento
+
+
     def linha_bresenham(self, x1, y1, x2, y2, r, g, b):
         # Converter coordenadas cartesianas para tela
         x1, y1 = self.mundo_para_tela(x1, y1)
@@ -209,6 +211,34 @@ class Canvas:
             if erro_dobrado < dx:
                 erro += dx
                 y1 += sy   
+            
+    def retangulo(self, x, y, largura, altura, r, g, b):
+        x1, y1 = x, y
+        x2, y2 = x + largura, y
+        x3, y3 = x + largura, y - altura
+        x4, y4 = x, y - altura
+
+        self.linha_bresenham(x1, y1, x2, y2, r, g, b)
+        self.linha_bresenham(x2, y2, x3, y3, r, g, b)
+        self.linha_bresenham(x3, y3, x4, y4, r, g, b)
+        self.linha_bresenham(x4, y4, x1, y1, r, g, b)
+
+
+    def triangulo(self, x1, y1, x2, y2, x3, y3, r, g, b):
+        self.linha_bresenham(x1, y1, x2, y2, r, g, b)
+        self.linha_bresenham(x2, y2, x3, y3, r, g, b)
+        self.linha_bresenham(x3, y3, x1, y1, r, g, b)
+
+
+    def poligono(self, vertices, r, g, b):
+        if len(vertices) < 3:
+            raise ValueError("Um polígono precisa de pelo menos 3 vértices.")
+
+        for i in range(len(vertices)):
+            x1, y1 = vertices[i]
+            x2, y2 = vertices[(i + 1) % len(vertices)]
+
+            self.linha_bresenham(x1, y1, x2, y2, r, g, b)
             
     # ==========================================
     # ATUALIZAR JANELA
@@ -248,49 +278,42 @@ class Canvas:
 if __name__ == "__main__":
     canvas = Canvas(800, 600)
 
-    # Eixo X
-    for x in range(canvas.largura_real):
-        canvas.pixel(x, 300, 100, 100, 100)
 
-    # Eixo Y
-    for y in range(canvas.altura_real):
-        canvas.pixel(400, y, 100, 100, 100)
+    # Retângulo vermelho
+    canvas.retangulo(-350, 200, 180, 120, 255, 0, 0)
 
-    # Linha diagonal crescente no plano cartesiano
-    canvas.linha_bresenham(
-        -150, -100,
-        150, 100,
-        255, 0, 0
-    )
-
-    # Linha com inclinação diferente
-    canvas.linha_bresenham(
-        -150, 0,
-        150, 100,
+    # Triângulo verde
+    canvas.triangulo(
+        -100, 50,
+        50, 50,
+        -25, 200,
         0, 255, 0
     )
 
-    # Linha diagonal no sentido oposto
-    canvas.linha_bresenham(
-        -150, 100,
-        150, -100,
+    # Pentágono azul
+    canvas.poligono(
+        [
+            (150, 150),
+            (250, 200),
+            (300, 100),
+            (250, 0),
+            (150, 50)
+        ],
         0, 100, 255
     )
 
-    # Linha vertical
-    canvas.linha_bresenham(
-        100, -150,
-        100, 150,
+    # Hexágono amarelo
+    canvas.poligono(
+        [
+            (-300, -50),
+            (-250, -100),
+            (-180, -100),
+            (-130, -50),
+            (-180, 0),
+            (-250, 0)
+        ],
         255, 255, 0
     )
-
-    # Linha horizontal
-    canvas.linha_bresenham(
-        -300, 50,
-        300, 50,
-        255, 0, 255
-    )
-
 
     # ------------------------------------------
     # ATUALIZAR E EXIBIR
