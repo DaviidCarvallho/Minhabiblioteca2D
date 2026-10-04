@@ -116,7 +116,7 @@ class Canvas:
         finally:
             # Liberar a superfície
             sdl2.SDL_UnlockSurface(self.surface)
-
+    
     # ==========================================
     # CONVERTER MUNDO PARA TELA
     # ==========================================
@@ -172,6 +172,43 @@ class Canvas:
 
             x += x_incremento
             y += y_incremento
+    def linha_bresenham(self, x1, y1, x2, y2, r, g, b):
+        # Converter coordenadas cartesianas para tela
+        x1, y1 = self.mundo_para_tela(x1, y1)
+        x2, y2 = self.mundo_para_tela(x2, y2)
+
+        # Diferenças absolutas
+        dx = abs(x2 - x1)
+        dy = abs(y2 - y1)
+
+        # Definir a direção do movimento
+        sx = 1 if x1 < x2 else -1
+        sy = 1 if y1 < y2 else -1
+
+        # Erro inicial
+        erro = dx - dy
+
+        # Percorrer os pixels até alcançar o ponto final
+        while True:
+            # Desenhar o pixel atual
+            self.pixel(x1, y1, r, g, b)
+
+            # Parar quando chegar ao ponto final
+            if x1 == x2 and y1 == y2:
+                break
+
+            # Dobrar o erro para tomar as decisões
+            erro_dobrado = 2 * erro
+
+            # Decidir se avança no eixo X
+            if erro_dobrado > -dy:
+                erro -= dy
+                x1 += sx
+
+            # Decidir se avança no eixo Y
+            if erro_dobrado < dx:
+                erro += dx
+                y1 += sy   
             
     # ==========================================
     # ATUALIZAR JANELA
@@ -207,23 +244,53 @@ class Canvas:
 # PROGRAMA PRINCIPAL
 # ==========================================
 
+
 if __name__ == "__main__":
     canvas = Canvas(800, 600)
 
-    # Linha horizontal (vermelha)
-    canvas.linha(-300, 200, 300, 200, 255, 0, 0)
+    # Eixo X
+    for x in range(canvas.largura_real):
+        canvas.pixel(x, 300, 100, 100, 100)
 
-    # Linha vertical (verde)
-    canvas.linha(0, -250, 0, 250, 0, 255, 0)
+    # Eixo Y
+    for y in range(canvas.altura_real):
+        canvas.pixel(400, y, 100, 100, 100)
 
-    # Linha diagonal crescente (azul)
-    canvas.linha(-250, -150, 250, 150, 0, 100, 255)
+    # Linha diagonal crescente no plano cartesiano
+    canvas.linha_bresenham(
+        -150, -100,
+        150, 100,
+        255, 0, 0
+    )
 
-    # Linha diagonal decrescente (amarela)
-    canvas.linha(-250, 150, 250, -150, 255, 255, 0)
+    # Linha com inclinação diferente
+    canvas.linha_bresenham(
+        -150, 0,
+        150, 100,
+        0, 255, 0
+    )
 
-    # Linha curta e inclinada (branca)
-    canvas.linha(-100, -50, 100, 20, 255, 255, 255)
+    # Linha diagonal no sentido oposto
+    canvas.linha_bresenham(
+        -150, 100,
+        150, -100,
+        0, 100, 255
+    )
+
+    # Linha vertical
+    canvas.linha_bresenham(
+        100, -150,
+        100, 150,
+        255, 255, 0
+    )
+
+    # Linha horizontal
+    canvas.linha_bresenham(
+        -300, 50,
+        300, 50,
+        255, 0, 255
+    )
+
 
     # ------------------------------------------
     # ATUALIZAR E EXIBIR
