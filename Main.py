@@ -123,20 +123,18 @@ class Canvas:
     # ==========================================
     # CONVERTER MUNDO PARA TELA
     # ==========================================
-    # ALTERAÇÃO: agora considera posição da câmera e zoom.
     def mundo_para_tela(self, x, y):
         centro_x = self.largura_real / 2
         centro_y = self.altura_real / 2
 
-        x_tela = centro_x + (x - self.camera_x) * self.zoom
-        y_tela = centro_y - (y - self.camera_y) * self.zoom
+        x_tela = round(centro_x + (x - self.camera_x) * self.zoom)
+        y_tela = round(centro_y - (y - self.camera_y) * self.zoom)
 
-        return round(x_tela), round(y_tela)
+        return x_tela, y_tela
 
     # ==========================================
     # CONVERTER TELA PARA MUNDO
     # ==========================================
-    # ALTERAÇÃO: conversão inversa considerando câmera e zoom.
     def tela_para_mundo(self, x, y):
         centro_x = self.largura_real / 2
         centro_y = self.altura_real / 2
@@ -146,28 +144,97 @@ class Canvas:
 
         return x_mundo, y_mundo
 
-    # NOVO: deslocar o ponto do mundo que fica no centro da tela.
+    # ==========================================
+    # CONTROLE DA CAMERA E DO ZOOM
+    # ==========================================
     def mover_camera(self, dx, dy):
         self.camera_x += dx
         self.camera_y += dy
 
-    # NOVO: definir a escala de visualização.
     def definir_zoom(self, fator):
         if fator <= 0:
             raise ValueError("O zoom deve ser maior que zero")
+
         self.zoom = fator
 
-    # NOVO: limpar a superfície com uma cor de fundo (preto por padrão).
-    def limpar(self, r=0, g=0, b=0):
-        if not all(0 <= c <= 255 for c in (r, g, b)):
-            raise ValueError("RGB deve estar entre 0 e 255")
-        formato = self.surface.contents.format
-        cor = sdl2.SDL_MapRGB(formato, r, g, b)
-        if sdl2.SDL_FillRect(self.surface, None, cor) != 0:
-            erro = sdl2.SDL_GetError().decode("utf-8")
-            raise RuntimeError(erro)
+    # ==========================================
+    # RECORTAR LINHA - COHEN-SUTHERLAND
+    # ==========================================
+    def recortar_linha(self, x1, y1, x2, y2):
+        # Calcular os limites visiveis no sistema do mundo
+        meia_largura = self.largura_real / (2 * self.zoom)
+        meia_altura = self.altura_real / (2 * self.zoom)
+
+        xmin = self.camera_x - meia_largura
+        xmax = self.camera_x + meia_largura
+        ymin = self.camera_y - meia_altura
+        ymax = self.camera_y + meia_altura
+
+        ESQUERDA = 1
+        DIREITA = 2
+        ABAIXO = 4
+        ACIMA = 8
+
+        def codigo_regiao(x, y):
+            codigo = 0
+
+            if x < xmin:
+                codigo |= ESQUERDA
+            elif x > xmax:
+                codigo |= DIREITA
+
+            if y < ymin:
+                codigo |= ABAIXO
+            elif y > ymax:
+                codigo |= ACIMA
+
+            return codigo
+
+        codigo1 = codigo_regiao(x1, y1)
+        codigo2 = codigo_regiao(x2, y2)
+
+        while True:
+            # Aceitacao trivial: os dois pontos estao dentro
+            if codigo1 == 0 and codigo2 == 0:
+                return x1, y1, x2, y2
+
+            # Rejeicao trivial: os pontos estao fora do mesmo lado
+            if codigo1 & codigo2:
+                return None
+
+            # Selecionar um ponto que esteja fora da janela
+            codigo_fora = codigo1 if codigo1 != 0 else codigo2
+
+            # Calcular a intersecao com uma das bordas
+            if codigo_fora & ACIMA:
+                x = x1 + (x2 - x1) * (ymax - y1) / (y2 - y1)
+                y = ymax
+            elif codigo_fora & ABAIXO:
+                x = x1 + (x2 - x1) * (ymin - y1) / (y2 - y1)
+                y = ymin
+            elif codigo_fora & DIREITA:
+                y = y1 + (y2 - y1) * (xmax - x1) / (x2 - x1)
+                x = xmax
+            else:  # ESQUERDA
+                y = y1 + (y2 - y1) * (xmin - x1) / (x2 - x1)
+                x = xmin
+
+            # Substituir o ponto externo pela intersecao
+            if codigo_fora == codigo1:
+                x1, y1 = x, y
+                codigo1 = codigo_regiao(x1, y1)
+            else:
+                x2, y2 = x, y
+                codigo2 = codigo_regiao(x2, y2)
 
     def linha(self, x1, y1, x2, y2, r, g, b):
+        # Recortar a linha antes de converter para a tela
+        resultado = self.recortar_linha(x1, y1, x2, y2)
+        if resultado is None:
+            return
+
+        x1, y1, x2, y2 = resultado
+
         # Converter as coordenadas cartesianas para tela
         x1, y1 = self.mundo_para_tela(x1, y1)
         x2, y2 = self.mundo_para_tela(x2, y2)
@@ -201,6 +268,13 @@ class Canvas:
 
 
     def linha_bresenham(self, x1, y1, x2, y2, r, g, b):
+        # Recortar a linha antes de converter para a tela
+        resultado = self.recortar_linha(x1, y1, x2, y2)
+        if resultado is None:
+            return
+
+        x1, y1, x2, y2 = resultado
+
         # Converter coordenadas cartesianas para tela
         x1, y1 = self.mundo_para_tela(x1, y1)
         x2, y2 = self.mundo_para_tela(x2, y2)
@@ -266,33 +340,41 @@ class Canvas:
 
             self.linha_bresenham(x1, y1, x2, y2, r, g, b)
     
-    # ALTERAÇÃO: rasteriza o preenchimento em coordenadas de tela.
-    # Isso mantém o interior contínuo também quando o zoom é diferente de 1.
     def preencher_poligono(self, vertices, r, g, b):
         if len(vertices) < 3:
             raise ValueError("Um polígono precisa de pelo menos 3 vértices.")
 
-        vertices_tela = [self.mundo_para_tela(x, y) for x, y in vertices]
-        y_min = min(y for x, y in vertices_tela)
-        y_max = max(y for x, y in vertices_tela)
+        # Encontrar os limites verticais
+        y_min = min(y for x, y in vertices)
+        y_max = max(y for x, y in vertices)
 
-        for y in range(max(0, y_min), min(self.altura_real - 1, y_max) + 1):
+        # Percorrer cada linha horizontal do polígono
+        for y in range(ceil(y_min), floor(y_max) + 1):
             intersecoes = []
-            for i in range(len(vertices_tela)):
-                x1, y1 = vertices_tela[i]
-                x2, y2 = vertices_tela[(i + 1) % len(vertices_tela)]
 
+            # Verificar a interseção da linha com cada aresta
+            for i in range(len(vertices)):
+                x1, y1 = vertices[i]
+                x2, y2 = vertices[(i + 1) % len(vertices)]
+
+                # Ignorar arestas horizontais e evitar
+                # contar duas vezes os vértices compartilhados
                 if min(y1, y2) <= y < max(y1, y2):
                     x_intersecao = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
                     intersecoes.append(x_intersecao)
 
+            # Ordenar as interseções da esquerda para a direita
             intersecoes.sort()
-            for i in range(0, len(intersecoes) - 1, 2):
-                x_inicio = max(0, ceil(intersecoes[i]))
-                x_fim = min(self.largura_real - 1, floor(intersecoes[i + 1]))
-                for x in range(x_inicio, x_fim + 1):
-                    self.pixel(x, y, r, g, b)
 
+            # Preencher entre cada par de interseções
+            for i in range(0, len(intersecoes) - 1, 2):
+                x_inicio = ceil(intersecoes[i])
+                x_fim = floor(intersecoes[i + 1])
+
+                for x in range(x_inicio, x_fim + 1):
+                    tela_x, tela_y = self.mundo_para_tela(x, y)
+                    self.pixel(tela_x, tela_y, r, g, b)
+        
     def retangulo_preenchido(self, x, y, largura, altura, r, g, b):
         vertices = [
             (x, y),
@@ -499,51 +581,31 @@ class Canvas:
 
 
 # ==========================================
-# PROGRAMA PRINCIPAL — TESTE DE CÂMERA E ZOOM
+# PROGRAMA PRINCIPAL
 # ==========================================
 
+
 if __name__ == "__main__":
+
     canvas = Canvas(800, 600)
 
-    # Triângulo original, definido em coordenadas do mundo.
-    vertices = [
-        (-50, 0),
-        (50, 0),
-        (0, 100)
-    ]
-
-    # Transformações geométricas por matrizes (mantidas da etapa anterior).
-    escala = canvas.matriz_escala(1.5, 1.5)
-    rotacao = canvas.matriz_rotacao(45)
-    translacao = canvas.matriz_translacao(150, 50)
-
-    # Com vetores-coluna, a ordem de aplicação é da direita para a esquerda:
-    # escala, depois rotação e, por fim, translação.
-    matriz_final = canvas.compor_transformacoes(
-        translacao,
-        rotacao,
-        escala
+   # Linha que atravessa a janela
+    canvas.linha_bresenham(
+        -1000, 0, 1000, 0,
+        255, 0, 0
     )
-    novos_vertices = canvas.transformar_poligono_matriz(vertices, matriz_final)
 
-    # Estado 1: triângulo original em vermelho.
-    canvas.limpar(0, 0, 0)
-    canvas.poligono(vertices, 255, 0, 0)
-    canvas.atualizar()
-    sdl2.SDL_Delay(1200)
+    # Linha totalmente fora da janela
+    canvas.linha_bresenham(
+        -1000, 500, -900, 500,
+        0, 255, 0
+    )
 
-    # Estado 2: polígono transformado em verde e visualização ampliada.
-    canvas.limpar(0, 0, 0)
-    canvas.definir_zoom(2.0)
-    canvas.poligono(novos_vertices, 0, 255, 0)
-    canvas.atualizar()
-    sdl2.SDL_Delay(1200)
-
-    # Estado 3: câmera deslocada no eixo X; o polígono aparece azul.
-    canvas.limpar(0, 0, 0)
-    canvas.mover_camera(50, 0)
-    canvas.poligono(novos_vertices, 0, 0, 255)
-    
+    # Linha diagonal parcialmente visível
+    canvas.linha_bresenham(
+        -500, -400, 500, 400,
+        0, 0, 255
+    )
     # ------------------------------------------
     # ATUALIZAR E EXIBIR
     # ------------------------------------------
