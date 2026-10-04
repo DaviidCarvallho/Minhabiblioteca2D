@@ -141,6 +141,38 @@ class Canvas:
 
         return x_mundo, y_mundo
 
+    def linha(self, x1, y1, x2, y2, r, g, b):
+        # Converter as coordenadas cartesianas para tela
+        x1, y1 = self.mundo_para_tela(x1, y1)
+        x2, y2 = self.mundo_para_tela(x2, y2)
+
+        # Calcular as diferenças entre os pontos
+        dx = x2 - x1
+        dy = y2 - y1
+
+        # Determinar a quantidade de passos
+        passos = max(abs(dx), abs(dy))
+
+        # Caso seja uma linha de apenas um ponto
+        if passos == 0:
+            self.pixel(x1, y1, r, g, b)
+            return
+
+        # Calcular os incrementos por passo
+        x_incremento = dx / passos
+        y_incremento = dy / passos
+
+        # Iniciar no primeiro ponto
+        x = x1
+        y = y1
+
+        # Desenhar cada pixel da linha
+        for _ in range(passos + 1):
+            self.pixel(round(x), round(y), r, g, b)
+
+            x += x_incremento
+            y += y_incremento
+            
     # ==========================================
     # ATUALIZAR JANELA
     # ==========================================
@@ -174,54 +206,24 @@ class Canvas:
 # ==========================================
 # PROGRAMA PRINCIPAL
 # ==========================================
+
 if __name__ == "__main__":
     canvas = Canvas(800, 600)
 
-    # ------------------------------------------
-    # EIXO X (CINZA)
-    # ------------------------------------------
-    for x in range(canvas.largura_real):
-        canvas.pixel(x, 300, 100, 100, 100)
+    # Linha horizontal (vermelha)
+    canvas.linha(-300, 200, 300, 200, 255, 0, 0)
 
-    # ------------------------------------------
-    # EIXO Y (CINZA)
-    # ------------------------------------------
-    for y in range(canvas.altura_real):
-        canvas.pixel(400, y, 100, 100, 100)
+    # Linha vertical (verde)
+    canvas.linha(0, -250, 0, 250, 0, 255, 0)
 
-    # ------------------------------------------
-    # ORIGEM (VERDE)
-    # ------------------------------------------
-    x, y = canvas.mundo_para_tela(0, 0)
-    canvas.pixel(x, y, 0, 255, 0)
+    # Linha diagonal crescente (azul)
+    canvas.linha(-250, -150, 250, 150, 0, 100, 255)
 
-    # ------------------------------------------
-    # PONTOS NOS QUADRANTES (VERMELHO)
-    # ------------------------------------------
-    pontos = [
-        (100, 50),
-        (-150, -100),
-        (200, -150),
-        (-250, 180)
-    ]
+    # Linha diagonal decrescente (amarela)
+    canvas.linha(-250, 150, 250, -150, 255, 255, 0)
 
-    for px, py in pontos:
-        x, y = canvas.mundo_para_tela(px, py)
-        canvas.pixel(x, y, 255, 0, 0)
-
-    # ------------------------------------------
-    # PONTOS PRÓXIMOS ÀS BORDAS (AZUL)
-    # ------------------------------------------
-    bordas = [
-        (-400, 0),
-        (399, 0),
-        (0, 300),
-        (0, -299)
-    ]
-
-    for px, py in bordas:
-        x, y = canvas.mundo_para_tela(px, py)
-        canvas.pixel(x, y, 0, 100, 255)
+    # Linha curta e inclinada (branca)
+    canvas.linha(-100, -50, 100, 20, 255, 255, 255)
 
     # ------------------------------------------
     # ATUALIZAR E EXIBIR
