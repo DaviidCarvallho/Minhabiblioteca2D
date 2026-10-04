@@ -2,7 +2,7 @@
 import ctypes
 import sys
 import sdl2
-
+from math import ceil, floor
 
 class Canvas:
     def __init__(self, largura, altura, titulo="Minha Biblioteca 2D"):
@@ -239,7 +239,69 @@ class Canvas:
             x2, y2 = vertices[(i + 1) % len(vertices)]
 
             self.linha_bresenham(x1, y1, x2, y2, r, g, b)
-            
+    
+    def preencher_poligono(self, vertices, r, g, b):
+        if len(vertices) < 3:
+            raise ValueError("Um polígono precisa de pelo menos 3 vértices.")
+
+        # Encontrar os limites verticais
+        y_min = min(y for x, y in vertices)
+        y_max = max(y for x, y in vertices)
+
+        # Percorrer cada linha horizontal do polígono
+        for y in range(ceil(y_min), floor(y_max) + 1):
+            intersecoes = []
+
+            # Verificar a interseção da linha com cada aresta
+            for i in range(len(vertices)):
+                x1, y1 = vertices[i]
+                x2, y2 = vertices[(i + 1) % len(vertices)]
+
+                # Ignorar arestas horizontais e evitar
+                # contar duas vezes os vértices compartilhados
+                if min(y1, y2) <= y < max(y1, y2):
+                    x_intersecao = x1 + (y - y1) * (x2 - x1) / (y2 - y1)
+                    intersecoes.append(x_intersecao)
+
+            # Ordenar as interseções da esquerda para a direita
+            intersecoes.sort()
+
+            # Preencher entre cada par de interseções
+            for i in range(0, len(intersecoes) - 1, 2):
+                x_inicio = ceil(intersecoes[i])
+                x_fim = floor(intersecoes[i + 1])
+
+                for x in range(x_inicio, x_fim + 1):
+                    tela_x, tela_y = self.mundo_para_tela(x, y)
+                    self.pixel(tela_x, tela_y, r, g, b)
+        
+    def retangulo_preenchido(self, x, y, largura, altura, r, g, b):
+        vertices = [
+            (x, y),
+            (x + largura, y),
+            (x + largura, y - altura),
+            (x, y - altura)
+        ]
+
+        self.preencher_poligono(vertices, r, g, b)
+        self.poligono(vertices, r, g, b)
+
+
+    def triangulo_preenchido(self, x1, y1, x2, y2, x3, y3, r, g, b):
+        vertices = [
+            (x1, y1),
+            (x2, y2),
+            (x3, y3)
+        ]
+
+        self.preencher_poligono(vertices, r, g, b)
+        self.poligono(vertices, r, g, b)
+
+
+    def poligono_preenchido(self, vertices, r, g, b):
+        self.preencher_poligono(vertices, r, g, b)
+        self.poligono(vertices, r, g, b)
+                
     # ==========================================
     # ATUALIZAR JANELA
     # ==========================================
@@ -276,22 +338,25 @@ class Canvas:
 
 
 if __name__ == "__main__":
+    
     canvas = Canvas(800, 600)
 
+    # Retângulo vermelho preenchido
+    canvas.retangulo_preenchido(
+        -350, 200, 180, 120,
+        255, 0, 0
+    )
 
-    # Retângulo vermelho
-    canvas.retangulo(-350, 200, 180, 120, 255, 0, 0)
-
-    # Triângulo verde
-    canvas.triangulo(
+    # Triângulo verde preenchido
+    canvas.triangulo_preenchido(
         -100, 50,
         50, 50,
         -25, 200,
         0, 255, 0
     )
 
-    # Pentágono azul
-    canvas.poligono(
+    # Pentágono azul preenchido
+    canvas.poligono_preenchido(
         [
             (150, 150),
             (250, 200),
@@ -302,8 +367,8 @@ if __name__ == "__main__":
         0, 100, 255
     )
 
-    # Hexágono amarelo
-    canvas.poligono(
+    # Hexágono amarelo preenchido
+    canvas.poligono_preenchido(
         [
             (-300, -50),
             (-250, -100),
@@ -314,7 +379,7 @@ if __name__ == "__main__":
         ],
         255, 255, 0
     )
-
+    
     # ------------------------------------------
     # ATUALIZAR E EXIBIR
     # ------------------------------------------
