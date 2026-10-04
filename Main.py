@@ -30,7 +30,7 @@ class Canvas:
             sdl2.SDL_Quit()
             raise RuntimeError(erro)
 
-        # Obter superfície da janela
+        # Obter a superfície da janela
         self.surface = sdl2.SDL_GetWindowSurface(self.window)
 
         if not self.surface:
@@ -53,6 +53,9 @@ class Canvas:
         print("Pitch:", self.pitch)
         print("Bytes por pixel:", self.bytes_por_pixel)
 
+    # ==========================================
+    # DESENHAR UM PIXEL
+    # ==========================================
     def pixel(self, x, y, r, g, b):
         # Validar coordenadas
         if not (0 <= x < self.largura_real):
@@ -65,7 +68,11 @@ class Canvas:
         if not all(0 <= c <= 255 for c in (r, g, b)):
             raise ValueError("RGB deve estar entre 0 e 255")
 
-        # Calcular posição na memória
+        # Garantir coordenadas inteiras
+        x = int(x)
+        y = int(y)
+
+        # Calcular posição do pixel na memória
         offset = (
             y * self.pitch +
             x * self.bytes_por_pixel
@@ -110,11 +117,41 @@ class Canvas:
             # Liberar a superfície
             sdl2.SDL_UnlockSurface(self.surface)
 
+    # ==========================================
+    # CONVERTER MUNDO PARA TELA
+    # ==========================================
+    def mundo_para_tela(self, x, y):
+        centro_x = self.largura_real / 2
+        centro_y = self.altura_real / 2
+
+        x_tela = round(centro_x + x)
+        y_tela = round(centro_y - y)
+
+        return x_tela, y_tela
+
+    # ==========================================
+    # CONVERTER TELA PARA MUNDO
+    # ==========================================
+    def tela_para_mundo(self, x, y):
+        centro_x = self.largura_real / 2
+        centro_y = self.altura_real / 2
+
+        x_mundo = x - centro_x
+        y_mundo = centro_y - y
+
+        return x_mundo, y_mundo
+
+    # ==========================================
+    # ATUALIZAR JANELA
+    # ==========================================
     def atualizar(self):
         if sdl2.SDL_UpdateWindowSurface(self.window) != 0:
             erro = sdl2.SDL_GetError().decode("utf-8")
             raise RuntimeError(erro)
 
+    # ==========================================
+    # MANTER JANELA ABERTA
+    # ==========================================
     def executar(self):
         evento = sdl2.SDL_Event()
         rodando = True
@@ -134,20 +171,60 @@ class Canvas:
             sdl2.SDL_Quit()
 
 
+# ==========================================
+# PROGRAMA PRINCIPAL
+# ==========================================
 if __name__ == "__main__":
     canvas = Canvas(800, 600)
 
-    # Pixel vermelho no centro
-    canvas.pixel(300, 300, 255, 0, 0)
+    # ------------------------------------------
+    # EIXO X (CINZA)
+    # ------------------------------------------
+    for x in range(canvas.largura_real):
+        canvas.pixel(x, 300, 100, 100, 100)
 
-    # Pixel verde no canto superior esquerdo
-    canvas.pixel(300, 200, 0, 255, 0)
+    # ------------------------------------------
+    # EIXO Y (CINZA)
+    # ------------------------------------------
+    for y in range(canvas.altura_real):
+        canvas.pixel(400, y, 100, 100, 100)
 
-    # Pixel azul no canto inferior direito
-    canvas.pixel(300, 400, 0, 0, 255)
+    # ------------------------------------------
+    # ORIGEM (VERDE)
+    # ------------------------------------------
+    x, y = canvas.mundo_para_tela(0, 0)
+    canvas.pixel(x, y, 0, 255, 0)
 
-    # Apresentar os pixels na janela
+    # ------------------------------------------
+    # PONTOS NOS QUADRANTES (VERMELHO)
+    # ------------------------------------------
+    pontos = [
+        (100, 50),
+        (-150, -100),
+        (200, -150),
+        (-250, 180)
+    ]
+
+    for px, py in pontos:
+        x, y = canvas.mundo_para_tela(px, py)
+        canvas.pixel(x, y, 255, 0, 0)
+
+    # ------------------------------------------
+    # PONTOS PRÓXIMOS ÀS BORDAS (AZUL)
+    # ------------------------------------------
+    bordas = [
+        (-400, 0),
+        (399, 0),
+        (0, 300),
+        (0, -299)
+    ]
+
+    for px, py in bordas:
+        x, y = canvas.mundo_para_tela(px, py)
+        canvas.pixel(x, y, 0, 100, 255)
+
+    # ------------------------------------------
+    # ATUALIZAR E EXIBIR
+    # ------------------------------------------
     canvas.atualizar()
-
-    # Manter a janela aberta
     canvas.executar()
