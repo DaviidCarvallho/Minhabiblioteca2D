@@ -301,6 +301,21 @@ class Canvas:
     def poligono_preenchido(self, vertices, r, g, b):
         self.preencher_poligono(vertices, r, g, b)
         self.poligono(vertices, r, g, b)
+    
+
+    def transformar_ponto(self, x, y, tx=0, ty=0):
+        novo_x = x + tx
+        novo_y = y + ty
+        return novo_x, novo_y
+
+    def transladar_poligono(self, vertices, tx, ty):
+        novos_vertices = []
+
+        for x, y in vertices:
+            novo_x, novo_y = self.transformar_ponto(x, y, tx, ty)
+            novos_vertices.append((novo_x, novo_y))
+
+        return novos_vertices
                 
     # ==========================================
     # ATUALIZAR JANELA
@@ -338,48 +353,28 @@ class Canvas:
 
 
 if __name__ == "__main__":
-    
+
     canvas = Canvas(800, 600)
 
-    # Retângulo vermelho preenchido
-    canvas.retangulo_preenchido(
-        -350, 200, 180, 120,
-        255, 0, 0
+    # Definir os vértices do triângulo original
+    vertices = [
+        (-100, 0),
+        (0, 150),
+        (100, 0)
+    ]
+
+    # Desenhar o triângulo original em vermelho
+    canvas.poligono(vertices, 255, 0, 0)
+
+    # Transladar o triângulo 250 unidades para a direita
+    # e 100 unidades para cima
+    novos_vertices = canvas.transladar_poligono(
+        vertices, 250, 100
     )
 
-    # Triângulo verde preenchido
-    canvas.triangulo_preenchido(
-        -100, 50,
-        50, 50,
-        -25, 200,
-        0, 255, 0
-    )
+    # Desenhar o triângulo transladado em verde
+    canvas.poligono(novos_vertices, 0, 255, 0)
 
-    # Pentágono azul preenchido
-    canvas.poligono_preenchido(
-        [
-            (150, 150),
-            (250, 200),
-            (300, 100),
-            (250, 0),
-            (150, 50)
-        ],
-        0, 100, 255
-    )
-
-    # Hexágono amarelo preenchido
-    canvas.poligono_preenchido(
-        [
-            (-300, -50),
-            (-250, -100),
-            (-180, -100),
-            (-130, -50),
-            (-180, 0),
-            (-250, 0)
-        ],
-        255, 255, 0
-    )
-    
     # ------------------------------------------
     # ATUALIZAR E EXIBIR
     # ------------------------------------------
