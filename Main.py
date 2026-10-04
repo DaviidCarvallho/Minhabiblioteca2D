@@ -316,7 +316,21 @@ class Canvas:
             novos_vertices.append((novo_x, novo_y))
 
         return novos_vertices
-                
+    
+    def escalar_ponto(self, x, y, sx=1, sy=1):
+        novo_x = x * sx
+        novo_y = y * sy
+
+        return novo_x, novo_y
+
+    def escalar_poligono(self, vertices, sx, sy):
+        novos_vertices = []
+
+        for x, y in vertices:
+            novo_x, novo_y = self.escalar_ponto(x, y, sx, sy)
+            novos_vertices.append((novo_x, novo_y))
+
+        return novos_vertices
     # ==========================================
     # ATUALIZAR JANELA
     # ==========================================
@@ -356,24 +370,23 @@ if __name__ == "__main__":
 
     canvas = Canvas(800, 600)
 
-    # Definir os vértices do triângulo original
+  # Vértices do triângulo original
     vertices = [
         (-100, 0),
         (0, 150),
         (100, 0)
     ]
 
-    # Desenhar o triângulo original em vermelho
+    # Desenhar o triângulo original
     canvas.poligono(vertices, 255, 0, 0)
 
-    # Transladar o triângulo 250 unidades para a direita
-    # e 100 unidades para cima
-    novos_vertices = canvas.transladar_poligono(
-        vertices, 250, 100
+    # Aplicar escala uniforme de 1.5
+    vertices_escalados = canvas.escalar_poligono(
+        vertices, 1.5, 1.5
     )
 
-    # Desenhar o triângulo transladado em verde
-    canvas.poligono(novos_vertices, 0, 255, 0)
+    # Desenhar o triângulo ampliado
+    canvas.poligono(vertices_escalados, 0, 255, 0)
 
     # ------------------------------------------
     # ATUALIZAR E EXIBIR
